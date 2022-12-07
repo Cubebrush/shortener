@@ -12,7 +12,11 @@ class Shortener::ShortenedClick < ActiveRecord::Base
     self.remote_ip = (env["HTTP_X_FORWARDED_FOR"].to_s.split(',').first.try(:strip) || env["REMOTE_ADDR"]).to_s
     self.referer = env["HTTP_REFERER"].to_s.dup.force_encoding("ISO-8859-1").force_encoding("utf-8")
     self.agent = env["HTTP_USER_AGENT"].to_s.dup.force_encoding("ISO-8859-1").force_encoding("utf-8")
-    self.country = geo_ip.country(self.remote_ip).country_name.to_s
+    begin
+      self.country = geo_ip.country(self.remote_ip).country_name.to_s
+    rescue SocketError => e
+      self.country = ''
+    end  
     self.browser = user_agent.browser.to_s
     self.platform = user_agent.platform.to_s
   end
