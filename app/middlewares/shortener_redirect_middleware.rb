@@ -34,8 +34,18 @@ class ShortenerRedirectMiddleware
     end
   end
 
+  # REQUEST_URI is the raw client request target, so it is not guaranteed to be
+  # parseable — mail and chat clients routinely glue markdown/bracket junk onto a
+  # short link ("/9ql7xg]", "/i3ozi[", "/i3ozi[/descarga") — and it is not
+  # guaranteed to be set at all (Puma sets it; rack-test and some servers do not).
+  # Either case used to raise URI::InvalidURIError out of the middleware and 500
+  # the request. There is nothing to merge when the target has no parseable query,
+  # so redirect to the bare location instead: an unresolvable short key then lands
+  # on the main site, which is this middleware's designed behaviour for a key that
+  # does not resolve.
+  # (Cubebrush: Better Stack 64dd6f55 / 70fc5e36 / 79d2b6ec / 1cd3de28 / 552bb9a2.)
   def location_with_merged_params(env, location)
-    uri = URI::parse(env['REQUEST_URI'])
+    uri = URI::parse(env['REQUEST_URI'].to_s)
     return location if uri.query.blank?
 
     params = Rack::Utils.parse_nested_query(uri.query)
@@ -45,6 +55,8 @@ class ShortenerRedirectMiddleware
     query = Rack::Utils.build_query(params2)
     location_without_params = location.split('?')[0]
     [location_without_params, query].join('?')
+  rescue URI::InvalidURIError
+    location
   end
 
 end
